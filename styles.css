@@ -1,0 +1,74 @@
+
+/* .recommendation-list img { */
+  /* width: 20ex; */
+  /* height: 20ex; */
+  /* object-fit: cover; */ 
+/* } */
+/* .recommendation-list div { */
+  /* width: 100%; */
+  /* height: 25ex; */
+/* } */
+
+
+:root {
+  --bg: #EEE;
+  --text: #121212;
+  --accent: #007acc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --bg-alt: #181818;
+    --text: #EEE;
+    --accent: #5e3ae9;
+  }
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+.button {
+  display: inline-block;
+  padding: 0.5ex 1ex;
+  background: var(--accent);
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 0.3em;
+  font-weight: bold;
+}
+
+.recommendation-list {
+  padding-left: 0;
+  margin-left: 40px;
+  margin-right: 40px;
+}
+.recommendation-list li {
+  list-style-type: none;
+  margin-bottom: 3ex;
+}
+
+.album-grid-container {
+  display: flex;
+  align-items: flex-start;
+  background-color: var(--bg-alt);
+  padding: 1ex;
+  border-radius: 0.3ex;
+}
+.album-grid-container .label {
+  user-select: none;
+}
+.album-grid-container > img {
+  width: 16ex;
+  height: auto;
+  margin-right: 1em;
+}
+
+.album-grid-info {
+  display: grid;
+  grid-template-columns: max-content auto;
+  row-gap: 0.3ex;
+  column-gap: 1ex;
+}
