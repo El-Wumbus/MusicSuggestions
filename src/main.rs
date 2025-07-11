@@ -6,12 +6,12 @@ use musicbrainz_rs::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    convert::identity,
-    fmt::{Debug, Write},
+    fmt::{Debug, Write as _},
+    fs,
+    io::Write as _,
     path::Path,
 };
 use tiny_http::{Header, Response};
-use tokio::{fs, io::AsyncWriteExt};
 use uri_rs::Uri;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -57,10 +57,7 @@ struct Release {
     annotation:    Option<String>,
 }
 
-async fn load_cache(
-    path: impl AsRef<Path>,
-    config: Config,
-) -> eyre::Result<Vec<Release>> {
+fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Release>> {
     let path = path.as_ref();
     let mut releases: Vec<Release> = Vec::new();
     let mut client = MusicBrainzClient::default();
@@ -68,8 +65,8 @@ async fn load_cache(
     client.max_retries = 3;
     client.set_user_agent("Decator's Music Suggestions 0.1.0")?;
 
-    if tokio::fs::try_exists(path).await.is_ok_and(identity) {
-        let contents = tokio::fs::read_to_string(path).await?;
+    if path.exists() {
+        let contents = fs::read_to_string(path)?;
         let contents: Cache = toml::from_str(&contents)?;
         releases = contents.releases;
     }
@@ -80,17 +77,15 @@ async fn load_cache(
             continue;
         }
 
-        client.wait_for_ratelimit().await;
+        client.wait_for_ratelimit();
         let mut rg = ReleaseGroup::fetch();
         let rg = rg
             .id(&rec.release)
             .with_artists()
             .with_genres()
             .with_annotations()
-            .execute_with_client(&client);
-        let artwork = get_releasegroup_image(&client, &rec.release);
-        let rg = rg.await?;
-        let artwork = artwork.await?;
+            .execute_with_client(&client)?;
+        let artwork = get_releasegroup_image(&client, &rec.release)?;
 
         let release = Release {
             rgid: rec.release.clone(),
@@ -115,26 +110,25 @@ async fn load_cache(
     let contents = toml::to_string(&cache)?;
 
     let parent = path.parent().expect("this is a file");
-    if !tokio::fs::try_exists(&parent).await.is_ok_and(identity) {
-        fs::create_dir(&parent).await.context(format!(
+    if !parent.is_dir() {
+        fs::create_dir(&parent).context(format!(
             "Failed to create parent directory of cache file: {parent:?}"
         ))?;
     }
-    let mut f = tokio::fs::File::create(&path).await?;
-    f.write_all(contents.as_bytes()).await?;
+    let mut f = fs::File::create(&path)?;
+    f.write_all(contents.as_bytes())?;
 
     Ok(cache.releases)
 }
 
-async fn get_releasegroup_image(
+fn get_releasegroup_image(
     client: &MusicBrainzClient,
     id: &str,
 ) -> eyre::Result<Option<String>> {
     let img = ReleaseGroup::fetch_coverart()
         .id(id)
         .front()
-        .execute_with_client(&client)
-        .await?;
+        .execute_with_client(&client)?;
     Ok(match img {
         CoverartResponse::Url(x) => Some(x),
         CoverartResponse::Json(coverart) => coverart
@@ -146,8 +140,7 @@ async fn get_releasegroup_image(
     })
 }
 
-#[tokio::main]
-async fn main() -> eyre::Result<()> {
+fn main() -> eyre::Result<()> {
     let cache_path = dirs::cache_dir()
         .expect("System should have a cache directory")
         .join("music-suggestions")
@@ -158,84 +151,67 @@ async fn main() -> eyre::Result<()> {
         .join("config.toml");
 
     let config = load_config(&config_path)?;
-    let releases = load_cache(&cache_path, config).await?;
+    let mut releases = load_cache(&cache_path, config)?;
     dbg!(&releases);
+    let server = tiny_http::Server::http("0.0.0.0:8000").unwrap();
 
-    tokio::task::spawn_blocking({
-        move || {
-            let mut releases = releases.clone();
-            let server = tiny_http::Server::http("0.0.0.0:8000").unwrap();
+    loop {
+        // blocks until the next request is received
+        let request = match server.recv() {
+            Ok(rq) => rq,
+            Err(e) => {
+                eprintln!("error: {}", e);
+                break;
+            }
+        };
+        let url = request.url();
+        let Ok(url) = Uri::new(url) else {
+            let _ = request.respond(Response::new_empty(tiny_http::StatusCode(404)));
+            continue;
+        };
+        let Some(path) = url.path else {
+            let _ = request.respond(Response::new_empty(tiny_http::StatusCode(404)));
+            continue;
+        };
+        let query = url.get_query_parameters().unwrap_or_default();
 
-            loop {
-                // blocks until the next request is received
-                let request = match server.recv() {
-                    Ok(rq) => rq,
-                    Err(e) => {
-                        eprintln!("error: {}", e);
-                        break;
-                    }
-                };
-                let url = request.url();
-                let Ok(url) = Uri::new(url) else {
-                    let _ =
-                        request.respond(Response::new_empty(tiny_http::StatusCode(404)));
-                    continue;
-                };
-                let Some(path) = url.path else {
-                    let _ =
-                        request.respond(Response::new_empty(tiny_http::StatusCode(404)));
-                    continue;
-                };
-                let query = url.get_query_parameters().unwrap_or_default();
-
-                match path {
-                    "/" => {
-                        if let Some(Some(sort)) = query.get("sort").as_deref() {
-                            match sort.as_str() {
-                                "title" => {
-                                    releases.sort_by(|a, b| a.title.cmp(&b.title));
-                                }
-                                "artist" => {
-                                    releases.sort_by(|a, b| {
-                                        a.artist_credit.cmp(&b.artist_credit)
-                                    });
-                                }
-                                "release_date" => {
-                                    releases.sort_by(|a, b| {
-                                        b.release_date.cmp(&a.release_date)
-                                    });
-                                }
-                                _ => {}
-                            }
+        match path {
+            "/" => {
+                if let Some(Some(sort)) = query.get("sort").as_deref() {
+                    match sort.as_str() {
+                        "title" => {
+                            releases.sort_by(|a, b| a.title.cmp(&b.title));
                         }
-
-                        let html = generate_html(&releases);
-                        if let Err(e) = request.respond(
-                            Response::from_string(html)
-                                .with_header(
-                                    Header::from_bytes(b"Content-Type", "text/html")
-                                        .unwrap(),
-                                )
-                                .with_header(
-                                    Header::from_bytes(
-                                        b"Cache-Control",
-                                        b"public, max-age=900",
-                                    )
-                                    .unwrap(),
-                                ),
-                        ) {
-                            eprintln!("Failed to respond: {e}");
-                        };
-                    }
-                    _ => {
-                        let _ = request
-                            .respond(Response::new_empty(tiny_http::StatusCode(404)));
+                        "artist" => {
+                            releases
+                                .sort_by(|a, b| a.artist_credit.cmp(&b.artist_credit));
+                        }
+                        "release_date" => {
+                            releases.sort_by(|a, b| b.release_date.cmp(&a.release_date));
+                        }
+                        _ => {}
                     }
                 }
+
+                let html = generate_html(&releases);
+                if let Err(e) = request.respond(
+                    Response::from_string(html)
+                        .with_header(
+                            Header::from_bytes(b"Content-Type", "text/html").unwrap(),
+                        )
+                        .with_header(
+                            Header::from_bytes(b"Cache-Control", b"public, max-age=900")
+                                .unwrap(),
+                        ),
+                ) {
+                    eprintln!("Failed to respond: {e}");
+                };
+            }
+            _ => {
+                let _ = request.respond(Response::new_empty(tiny_http::StatusCode(404)));
             }
         }
-    })
-    .await?;
+    }
 
     Ok(())
 }
