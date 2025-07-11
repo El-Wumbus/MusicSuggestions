@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-convert_case = "0.8.0"
 dirs = "6.0.0"
 eyre = "0.6.12"
 musicbrainz_rs = { version = "0.12.0", features = ["rustls"] }
