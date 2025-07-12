@@ -16,6 +16,7 @@ use uri_rs::Uri;
 
 #[derive(Debug, Clone, Deserialize)]
 struct Config {
+    bind: Option<String>,
     #[serde(default)]
     recs: Vec<Recommendation>,
 }
@@ -111,7 +112,7 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
 
     let parent = path.parent().expect("this is a file");
     if !parent.is_dir() {
-        fs::create_dir(&parent).context(format!(
+        fs::create_dir_all(&parent).context(format!(
             "Failed to create parent directory of cache file: {parent:?}"
         ))?;
     }
@@ -151,9 +152,13 @@ fn main() -> eyre::Result<()> {
         .join("config.toml");
 
     let config = load_config(&config_path)?;
+    let bind = config
+        .bind
+        .clone()
+        .unwrap_or_else(|| "0.0.0.0:8000".to_string());
     let mut releases = load_cache(&cache_path, config)?;
     dbg!(&releases);
-    let server = tiny_http::Server::http("0.0.0.0:8000").unwrap();
+    let server = tiny_http::Server::http(bind).unwrap();
 
     loop {
         // blocks until the next request is received
