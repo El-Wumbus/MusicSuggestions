@@ -58,10 +58,10 @@ struct Release {
     release_date:  Option<DateString>,
     artist_credit: Option<String>,
     genres:        Vec<String>,
-    annotation:    Option<String>,
 }
 
 fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Release>> {
+    let mut err = None;
     let path = path.as_ref();
     let mut releases: Vec<Release> = Vec::new();
     let mut client = MusicBrainzClient::default();
@@ -83,15 +83,27 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
             continue;
         }
         let now = Instant::now();
-        if now - last_fetch < Duration::from_secs(1) {
+        if now - last_fetch < Duration::from_secs(4) {
             eprintln!("Waiting for rate limit...");
             std::thread::sleep(now - last_fetch);
         }
 
-        let rg = get_releasegroup(&client, &rec.release).unwrap();
+        let rg = match get_releasegroup(&client, &rec.release) {
+            Ok(r) => r,
+            Err(e) => {
+                err = Some(e);
+                break;
+            }
+        };
         eprintln!("Waiting for rate limit...");
-        std::thread::sleep(Duration::from_millis(1100));
-        let artwork = get_releasegroup_image(&client, &rec.release).unwrap();
+        std::thread::sleep(Duration::from_secs(4));
+        let artwork = match get_releasegroup_image(&client, &rec.release) {
+            Ok(a) => a,
+            Err(e) => {
+                err = Some(e);
+                break;
+            }
+        };
         last_fetch = Instant::now();
 
         let release = Release {
@@ -107,7 +119,6 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
                 .map(|x| x.name)
                 .next(),
             genres: rg.genres.into_iter().flatten().map(|x| x.name).collect(),
-            annotation: rg.annotation,
         };
         releases.push(release);
     }
@@ -125,6 +136,9 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
     let mut f = fs::File::create(&path)?;
     f.write_all(contents.as_bytes())?;
 
+    if let Some(err) = err {
+        return Err(err.into());
+    }
     Ok(cache.releases)
 }
 
@@ -140,7 +154,6 @@ fn get_releasegroup(
             .id(id)
             .with_artists()
             .with_genres()
-            .with_annotations()
             .execute_with_client(client);
 
         match attempt {
@@ -156,7 +169,7 @@ fn get_releasegroup(
                     break Err(musicbrainz_rs::Error::ReqwestError(e));
                 }
                 tries -= 1;
-                sleep(Duration::from_secs(1));
+                sleep(Duration::from_secs(4));
                 continue;
             }
             Err(e) => break Err(e),
@@ -197,7 +210,7 @@ fn get_releasegroup_image(
                     break Err(musicbrainz_rs::Error::ReqwestError(e));
                 }
                 tries -= 1;
-                sleep(Duration::from_secs(1));
+                sleep(Duration::from_secs(4));
                 continue;
             }
             Err(e) => break Err(e),
@@ -408,11 +421,6 @@ fn generate_release_element(release: &Release) -> String {
             genres = release.genres.join(", ")
         )
         .unwrap();
-
-        if let Some(annotation) = release.annotation.as_deref() {
-            writeln!(buf, r#"<br/>"#).unwrap();
-            writeln!(buf, r#"<div>{annotation}</div>"#, annotation = annotation).unwrap();
-        }
     }
     writeln!(buf, "</div>").unwrap();
 
