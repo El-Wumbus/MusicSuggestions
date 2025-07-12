@@ -682,7 +682,6 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "eyre",
- "hyper",
  "musicbrainz_rs",
  "reqwest",
  "serde",

@@ -6,11 +6,9 @@ use musicbrainz_rs::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    error::Error,
     fmt::{Debug, Write as _},
     fs,
     io::Write as _,
-    ops::Deref,
     path::Path,
     thread::sleep,
     time::{Duration, Instant},
