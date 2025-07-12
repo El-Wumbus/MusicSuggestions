@@ -381,7 +381,7 @@ fn generate_release_element(release: &Release) -> String {
     {
         writeln!(
             buf,
-            r#"<div class="label"><strong>MBID:</strong></div><a href=https://musicbrainz.org/release-group/{mbid}>{mbid}</a>"#,
+            r#"<div class="label"><strong>MBID:</strong></div><a style="hyphens: manual; overflow-wrap: anywhere;" href=https://musicbrainz.org/release-group/{mbid}>{mbid}</a>"#,
             mbid = release.rgid
         )
         .unwrap();
