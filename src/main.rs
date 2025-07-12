@@ -302,6 +302,12 @@ fn generate_release_element(release: &Release) -> String {
 
     writeln!(buf, r#"<div class="album-grid-info">"#).unwrap();
     {
+        writeln!(
+            buf,
+            r#"<div class="label"><strong>MBID:</strong></div><a href=https://musicbrainz.org/release-group/{mbid}>{mbid}</a>"#,
+            mbid = release.rgid
+        )
+        .unwrap();
         if let Some(artist) = release.artist_credit.as_deref() {
             writeln!(
                 buf,

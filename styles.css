@@ -1,15 +1,3 @@
-
-/* .recommendation-list img { */
-  /* width: 20ex; */
-  /* height: 20ex; */
-  /* object-fit: cover; */ 
-/* } */
-/* .recommendation-list div { */
-  /* width: 100%; */
-  /* height: 25ex; */
-/* } */
-
-
 :root {
   --bg: #EEE;
   --text: #121212;
@@ -28,6 +16,10 @@
 body {
   background-color: var(--bg);
   color: var(--text);
+}
+
+a {
+  color: var(--accent);
 }
 
 .button {
