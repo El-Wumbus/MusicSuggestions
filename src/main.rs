@@ -1,7 +1,8 @@
 use eyre::Context;
 use musicbrainz_rs::{
     MusicBrainzClient,
-    entity::{CoverartResponse, release_group::ReleaseGroup},
+    chrono::NaiveDate,
+    entity::{CoverartResponse, date_string::DateString, release_group::ReleaseGroup},
     prelude::*,
 };
 use serde::{Deserialize, Serialize};
@@ -54,7 +55,7 @@ struct Release {
 
     title:         String,
     artwork:       Option<String>,
-    release_date:  Option<String>,
+    release_date:  Option<DateString>,
     artist_credit: Option<String>,
     genres:        Vec<String>,
     annotation:    Option<String>,
@@ -87,7 +88,6 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
             std::thread::sleep(now - last_fetch);
         }
 
-        // TODO: rate limit to one per second.
         let rg = get_releasegroup(&client, &rec.release).unwrap();
         eprintln!("Waiting for rate limit...");
         std::thread::sleep(Duration::from_millis(1100));
@@ -99,7 +99,7 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
             highly: rec.highly,
             title: rg.title,
             artwork,
-            release_date: rg.first_release_date.map(|x| x.0),
+            release_date: rg.first_release_date,
             artist_credit: rg
                 .artist_credit
                 .into_iter()
@@ -256,7 +256,19 @@ fn main() -> eyre::Result<()> {
                                 .sort_by(|a, b| a.artist_credit.cmp(&b.artist_credit));
                         }
                         "release_date" => {
-                            releases.sort_by(|a, b| b.release_date.cmp(&a.release_date));
+                            // HOLY stupid
+                            releases.sort_by(|a, b| {
+                                b.release_date
+                                    .as_ref()
+                                    .map(|x| {
+                                        x.into_naive_date(1, 1, 1)
+                                            .unwrap_or(NaiveDate::MIN)
+                                    })
+                                    .cmp(&a.release_date.as_ref().map(|x| {
+                                        x.into_naive_date(1, 1, 1)
+                                            .unwrap_or(NaiveDate::MIN)
+                                    }))
+                            });
                         }
                         _ => {}
                     }
@@ -286,7 +298,7 @@ fn main() -> eyre::Result<()> {
 }
 
 fn generate_html(releases: &[Release]) -> String {
-    const TITLE: &str = "Album Recommendations";
+    const TITLE: &str = "Recommendations";
     const CSS: &str = include_str!("../styles.css");
     let mut buf = String::new();
     writeln!(buf, "<!DOCTYPE html>").unwrap();
@@ -386,7 +398,7 @@ fn generate_release_element(release: &Release) -> String {
             title = release.title
         )
         .unwrap();
-        if let Some(release_date) = release.release_date.as_deref() {
+        if let Some(DateString(release_date)) = release.release_date.as_ref() {
             writeln!(buf, r#"<div class="label"><strong>Release Date:</strong></div><div>{date}</div>"#, date = release_date).unwrap();
         }
         writeln!(
