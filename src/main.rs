@@ -78,9 +78,12 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
 
     releases.retain(|cached| config.recs.iter().any(|rec| rec.release == cached.rgid));
     let mut last_fetch = Instant::now();
-    for rec in config.recs.iter() {
-        if releases.iter().any(|cached| cached.rgid == rec.release) {
-            continue;
+    'outer: for rec in config.recs.iter() {
+        for release in releases.iter_mut() {
+            if release.rgid == rec.release {
+                release.highly = rec.highly;
+                continue 'outer;
+            }
         }
         let now = Instant::now();
         if now - last_fetch < Duration::from_secs(4) {
