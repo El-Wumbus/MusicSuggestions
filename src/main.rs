@@ -6,10 +6,14 @@ use musicbrainz_rs::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    error::Error,
     fmt::{Debug, Write as _},
     fs,
     io::Write as _,
+    ops::Deref,
     path::Path,
+    thread::sleep,
+    time::{Duration, Instant},
 };
 use tiny_http::{Header, Response};
 use uri_rs::Uri;
@@ -64,7 +68,8 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
     let mut client = MusicBrainzClient::default();
 
     client.max_retries = 3;
-    client.set_user_agent("Decator's Music Suggestions 0.1.0")?;
+    client
+        .set_user_agent("Decator's Music Suggestions 0.1.0 (expo-plusplus@proton.me)")?;
 
     if path.exists() {
         let contents = fs::read_to_string(path)?;
@@ -73,20 +78,23 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
     }
 
     releases.retain(|cached| config.recs.iter().any(|rec| rec.release == cached.rgid));
+    let mut last_fetch = Instant::now();
     for rec in config.recs.iter() {
         if releases.iter().any(|cached| cached.rgid == rec.release) {
             continue;
         }
+        let now = Instant::now();
+        if now - last_fetch < Duration::from_secs(1) {
+            eprintln!("Waiting for rate limit...");
+            std::thread::sleep(now - last_fetch);
+        }
 
-        client.wait_for_ratelimit();
-        let mut rg = ReleaseGroup::fetch();
-        let rg = rg
-            .id(&rec.release)
-            .with_artists()
-            .with_genres()
-            .with_annotations()
-            .execute_with_client(&client)?;
-        let artwork = get_releasegroup_image(&client, &rec.release)?;
+        // TODO: rate limit to one per second.
+        let rg = get_releasegroup(&client, &rec.release).unwrap();
+        eprintln!("Waiting for rate limit...");
+        std::thread::sleep(Duration::from_millis(1100));
+        let artwork = get_releasegroup_image(&client, &rec.release).unwrap();
+        last_fetch = Instant::now();
 
         let release = Release {
             rgid: rec.release.clone(),
@@ -122,23 +130,81 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
     Ok(cache.releases)
 }
 
+/// Try up to three times to get the release group.
+fn get_releasegroup(
+    client: &MusicBrainzClient,
+    id: &str,
+) -> Result<ReleaseGroup, musicbrainz_rs::Error> {
+    let mut tries = 3i32;
+    loop {
+        eprintln!("Getting info for: {:?}...", id);
+        let attempt = ReleaseGroup::fetch()
+            .id(id)
+            .with_artists()
+            .with_genres()
+            .with_annotations()
+            .execute_with_client(client);
+
+        match attempt {
+            Ok(rg) => {
+                break Ok(rg);
+            }
+            Err(musicbrainz_rs::Error::ReqwestError(e))
+                if e.status()
+                    .is_some_and(|x| x == reqwest::StatusCode::SERVICE_UNAVAILABLE)
+                    || e.is_request() && !e.is_status() =>
+            {
+                if tries < 0 {
+                    break Err(musicbrainz_rs::Error::ReqwestError(e));
+                }
+                tries -= 1;
+                sleep(Duration::from_secs(1));
+                continue;
+            }
+            Err(e) => break Err(e),
+        }
+    }
+}
+
 fn get_releasegroup_image(
     client: &MusicBrainzClient,
     id: &str,
-) -> eyre::Result<Option<String>> {
-    let img = ReleaseGroup::fetch_coverart()
-        .id(id)
-        .front()
-        .execute_with_client(&client)?;
-    Ok(match img {
-        CoverartResponse::Url(x) => Some(x),
-        CoverartResponse::Json(coverart) => coverart
-            .images
-            .into_iter()
-            .filter(|x| x.front)
-            .map(|x| x.image)
-            .next(),
-    })
+) -> Result<Option<String>, musicbrainz_rs::Error> {
+    let mut tries = 3i32;
+    loop {
+        eprintln!("Getting image for: {:?}...", id);
+        let attempt = ReleaseGroup::fetch_coverart()
+            .id(id)
+            .front()
+            .res_250()
+            .execute_with_client(&client);
+        match attempt {
+            Ok(img) => {
+                break Ok(match img {
+                    CoverartResponse::Url(x) => Some(x),
+                    CoverartResponse::Json(coverart) => coverart
+                        .images
+                        .into_iter()
+                        .filter(|x| x.front)
+                        .map(|x| x.image)
+                        .next(),
+                });
+            }
+            Err(musicbrainz_rs::Error::ReqwestError(e))
+                if e.status()
+                    .is_some_and(|x| x == reqwest::StatusCode::SERVICE_UNAVAILABLE)
+                    || e.is_request() && !e.is_status() =>
+            {
+                if tries < 0 {
+                    break Err(musicbrainz_rs::Error::ReqwestError(e));
+                }
+                tries -= 1;
+                sleep(Duration::from_secs(1));
+                continue;
+            }
+            Err(e) => break Err(e),
+        }
+    }
 }
 
 fn main() -> eyre::Result<()> {
@@ -157,7 +223,7 @@ fn main() -> eyre::Result<()> {
         .clone()
         .unwrap_or_else(|| "0.0.0.0:8000".to_string());
     let mut releases = load_cache(&cache_path, config)?;
-    dbg!(&releases);
+    eprintln!("I have {} releases!", releases.len());
     let server = tiny_http::Server::http(bind).unwrap();
 
     loop {
