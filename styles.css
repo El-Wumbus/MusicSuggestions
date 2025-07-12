@@ -16,6 +16,7 @@
 body {
   background-color: var(--bg);
   color: var(--text);
+  font-family: noto-sans, sans-serif;
 }
 
 a {

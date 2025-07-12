@@ -325,7 +325,7 @@ fn generate_body(releases: &[Release]) -> String {
     )
     .unwrap();
     writeln!(buf, r#"<a class="button" href="/?sort=artist">Artist</a>"#).unwrap();
-    writeln!(buf, r#"<a class="button" href="/?sort=title">Title</a>"#).unwrap();
+    writeln!(buf, r#"<a class="button" href="/?sort=title">Album</a>"#).unwrap();
     writeln!(
         buf,
         r#"<a class="button" href="/?sort=release_date">Release Date (Decending)</a>"#
