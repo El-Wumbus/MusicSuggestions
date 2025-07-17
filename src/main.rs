@@ -35,6 +35,10 @@ fn main() -> eyre::Result<()> {
     let mut cache: HashMap<u64, String, RandomState> = HashMap::default();
     let music_releases = page::music::prepare()?;
 
+    let caching_headers: &[Header] = &[
+        "Content-Type: text/html".parse().unwrap(),
+        "Cache-Control: public, max-age=900".parse().unwrap(),
+    ];
     let server = tiny_http::Server::http(bind).unwrap();
     loop {
         let mut request = match server.recv() {
@@ -51,10 +55,14 @@ fn main() -> eyre::Result<()> {
             let _ = request.respond(Response::new_empty(tiny_http::StatusCode(404)));
             continue;
         };
-        let Some(path) = url.path.as_deref() else {
+        let Some(mut path) = url.path.as_deref() else {
             let _ = request.respond(Response::new_empty(tiny_http::StatusCode(404)));
             continue;
         };
+        if path.ends_with('/') && path != "/" {
+            path = &path[0..path.len() - 1];
+        }
+
         let query = url.as_ref().get_query_parameters().unwrap_or_default();
 
         let key = {
@@ -79,27 +87,30 @@ fn main() -> eyre::Result<()> {
             rstate.hash_one(key)
         };
 
-        match (method, path) {
-            (Method::Get, "/") => {
+        let mut response = match (method, path) {
+            (Method::Get, "/") => Response::empty(308)
+                .with_header(
+                    Header::from_bytes(b"Location", page::music::PATH.as_bytes())
+                        .unwrap(),
+                )
+                .boxed(),
+            (Method::Get, page::music::PATH) => {
                 let html = cache.get(&key).cloned().unwrap_or_else(|| {
                     let v = page::music::render(&music_releases, &query);
                     cache.insert(key, v.clone());
                     v
                 });
-                let response = Response::from_string(html)
-                    .with_header(
-                        Header::from_bytes(b"Content-Type", "text/html").unwrap(),
-                    )
-                    .with_header(
-                        Header::from_bytes(b"Cache-Control", b"public, max-age=900")
-                            .unwrap(),
-                    );
-                respond_or_complain(request, response);
+                Response::from_string(html).boxed()
             }
             _ => {
-                let _ = request.respond(Response::new_empty(tiny_http::StatusCode(404)));
+                eprintln!("Couldn't find {path:?}");
+                Response::new_empty(tiny_http::StatusCode(404)).boxed()
             }
-        }
+        };
+        caching_headers
+            .iter()
+            .for_each(|header| response.add_header(header.clone()));
+        respond_or_complain(request, response);
     }
 
     Ok(())

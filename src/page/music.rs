@@ -16,6 +16,8 @@ use std::{
 };
 use uri_rs::QueryParameters;
 
+pub const PATH: &str = "/music";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Release {
     /// MusicBrainz ReleaseGroupID
@@ -226,11 +228,19 @@ fn generate_body(releases: &[&Release]) -> String {
         r#"<div class="label" style="display: inline-block">Sort by:</div>"#
     )
     .unwrap();
-    writeln!(buf, r#"<a class="button" href="/?sort=artist">Artist</a>"#).unwrap();
-    writeln!(buf, r#"<a class="button" href="/?sort=title">Album</a>"#).unwrap();
     writeln!(
         buf,
-        r#"<a class="button" href="/?sort=release_date">Release Date (Decending)</a>"#
+        r#"<a class="button" href="{PATH}/?sort=artist">Artist</a>"#
+    )
+    .unwrap();
+    writeln!(
+        buf,
+        r#"<a class="button" href="{PATH}/?sort=title">Album</a>"#
+    )
+    .unwrap();
+    writeln!(
+        buf,
+        r#"<a class="button" href="{PATH}/?sort=release_date">Release Date (Decending)</a>"#
     )
     .unwrap();
     writeln!(buf, "</nav>").unwrap();
