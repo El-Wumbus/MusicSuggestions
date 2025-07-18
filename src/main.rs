@@ -1,3 +1,4 @@
+#![feature(result_option_map_or_default)]
 use ahash::RandomState;
 use eyre::Context;
 use serde::Deserialize;
@@ -6,6 +7,8 @@ use tiny_http::{Header, Method, Request, Response};
 use uri_rs::UriOwned;
 
 mod page;
+#[macro_use]
+mod macros;
 
 pub const CSS: &str = include_str!("../styles.css");
 pub const NAME: &str = env!("CARGO_CRATE_NAME");

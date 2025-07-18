@@ -5,13 +5,14 @@ use std::{
 
 use chrono::NaiveDateTime;
 use eyre::Context;
-use log::error;
+use log::{error, info};
+use pulldown_cmark::html;
 use serde::Deserialize;
 use std::fmt::Write as _;
 use tiny_http::{Header, Response, ResponseBox};
 use uri_rs::QueryParameters;
 
-use crate::{CSS, NAME};
+use crate::{CSS, NAME, group_nodes, node};
 
 struct Config {}
 
@@ -75,39 +76,26 @@ fn render_index(content_dir: &Path) -> eyre::Result<ResponseBox> {
     index.sort_by_key(|(_, t)| *t);
 
     const TITLE: &str = "Words";
-    let mut out = String::new();
-
-    writeln!(out, "<!DOCTYPE html>").unwrap();
-    writeln!(out, r#"<html lang="en-US">"#).unwrap();
-    writeln!(out, "<head>").unwrap();
-    {
-        writeln!(out, r#"<meta charset="utf-8" />"#).unwrap();
-        writeln!(
-            out,
-            r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#
-        )
-        .unwrap();
-        writeln!(out, r"<title>{TITLE}</title>").unwrap();
-        writeln!(out, r#"<meta property="og:title" content="{TITLE}" />"#).unwrap();
-        writeln!(out, "<style>\n{CSS}\n</style>").unwrap();
-    }
-    writeln!(out, "</head>").unwrap();
-
-    writeln!(out, "<body>").unwrap();
-    {
-        writeln!(out, "<ol>").unwrap();
-        {
-            for (title, datetime) in index {
-                let href = format!("/words?title={title}");
-                writeln!(out, r#"<li><a href="{href}">{title}</a></li>"#).unwrap();
+    let rest_html = node! {html, lang = "en-US" =>
+        node!{head =>
+            node!{meta, charset = "utf-8"},
+            node!{meta, name = "viewport", content = "width=device-width, initial-scale=1"},
+            node!{title => TITLE},
+            node!{meta, property="og:title", content=TITLE},
+            node!{style => CSS}
+        },
+        node!{body =>
+            node!{ol =>
+                index.iter().fold(String::new(), |acc, (title, _datetime)| {
+                    let x = node!{li => node!{a, href = format!("/words?title={title}") => title}};
+                    format!("{acc}{x}")
+                })
             }
         }
-        writeln!(out, "</ol>").unwrap();
-    }
-    writeln!(out, "</body>").unwrap();
-    writeln!(out, r"</html>").unwrap();
+    };
+    let html = format!("<!DOCTYPE html>\n{rest_html}");
 
-    let response = Response::from_string(out)
+    let response = Response::from_string(html)
         .with_header(
             "Content-Type: text/html"
                 .parse::<Header>()
@@ -228,52 +216,35 @@ fn apply_document_template(html: &str, meta: &Meta) -> String {
 
     let mut out = String::new();
 
-    writeln!(out, "<!DOCTYPE html>").unwrap();
-    writeln!(out, r#"<html lang="en-US">"#).unwrap();
-    writeln!(out, "<head>").unwrap();
-    {
-        writeln!(out, r#"<meta charset="utf-8" />"#).unwrap();
-        writeln!(
-            out,
-            r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#
-        )
-        .unwrap();
-        writeln!(out, r"<title>{title}</title>").unwrap();
-        writeln!(out, r#"<meta property="og:title" content="{title}" />"#).unwrap();
+    let html = node! {html, lang = "en-US" =>
+        node!{head =>
+            node!{meta, charset = "utf-8"},
+            node!{meta, name = "viewport", content = "width=device-width, initial-scale=1"},
+            node!{title => title},
+            node!{meta, property="og:title", content=title},
+            meta.description.as_deref().map_or_default(|description| {
+                group_nodes!(
+                    node!(meta, name = "description", content = description),
+                    node!(meta, name = "description", content = description)
+                ).to_string()
+            }),
+            node!{style => CSS},
+        },
+        node!{body, class ="md-body" =>
+            node!{article, class="md-content-container" =>
+                node!{div, style = "display: flex; justify-content: space-between; aligin-items: center; margin: 0" =>
+                    node! {h1, class = "md-title", style = "margin: 0; margin-bottom: 0.17ex" =>
+                        title
+                    },
+                    node!{span, style = "font-size: x-small; color: var(--text-alt)" =>
+                        meta.datetime
+                    }
+                },
+                node!{hr, style = "margin-bottom:2ex"},
+                html,
+            },
+        },
+    };
 
-        if let Some(description) = meta.description.as_deref() {
-            writeln!(
-                out,
-                r#"<meta name="description" content="{description}" />"#
-            )
-            .unwrap();
-            writeln!(
-                out,
-                r#"<meta property="og:description" content="{description}" />"#
-            )
-            .unwrap();
-        }
-        writeln!(out, "<style>\n{CSS}\n</style>").unwrap();
-    }
-    writeln!(out, "</head>").unwrap();
-
-    writeln!(out, r#"<body class="md-body">"#).unwrap();
-    {
-        writeln!(out, r#"<article class=".md-content-container">"#).unwrap();
-        writeln!(out, r#"
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 0">
-                <h1 class="md-title" style="margin: 0; margin-bottom: 0.17ex;">{title}</h1>
-                <span style="font-size: x-small; color: #999">{date}</span>
-            </div>
-            "#, date = meta.datetime).unwrap();
-        // writeln!(out, r#"<h1 style="margin:0.17ex;">{title}</h1>"#).unwrap();
-        // writeln!(out, r#"<p style="font-size: x-small; padding: 0; margin: 0.17ex; margin-top: 0; margin-bottom: 1ex">{date}</p>"#, date = meta.datetime).unwrap();
-        writeln!(out, r#"<hr style="margin-bottom:2ex"/>"#).unwrap();
-        writeln!(out, "{html}").unwrap();
-        writeln!(out, "</article>").unwrap();
-    }
-    writeln!(out, "</body>").unwrap();
-
-    writeln!(out, "</html>").unwrap();
-    out
+    format!("<!DOCTYPE html>\n{html}")
 }

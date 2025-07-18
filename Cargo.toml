@@ -3,6 +3,9 @@ name = "website"
 version = "0.2.0"
 edition = "2024"
 
+[profile.dev]
+opt-level = 1
+
 [profile.release]
 debug = false
 strip = true
@@ -14,7 +17,6 @@ chrono = { version = "0.4.41", features = ["serde"] }
 dirs = "6.0.0"
 env_logger = "0.11.8"
 eyre = "0.6.12"
-indoc = "2.0.6"
 log = "0.4.27"
 musicbrainz_rs = { version = "0.12.0", default-features = false, features = ["rustls", "blocking"] }
 pulldown-cmark = { version = "0.13.0", features = ["simd"] }
