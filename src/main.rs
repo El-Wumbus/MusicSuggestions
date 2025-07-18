@@ -7,6 +7,7 @@ use uri_rs::UriOwned;
 
 mod page;
 
+pub const CSS: &str = include_str!("../styles.css");
 pub const NAME: &str = env!("CARGO_CRATE_NAME");
 
 #[derive(Debug, Deserialize)]
@@ -16,14 +17,15 @@ struct Config {
 
 fn load_config(path: impl AsRef<Path>) -> eyre::Result<Config> {
     let path = path.as_ref();
-    let contents = fs::read_to_string(path)
-        .context(format!("Failed to read config from {path:?}"))?;
-    let config = toml::from_str(&contents)
-        .context(format!("Failed to parse TOML from {path:?}"))?;
+    let contents =
+        fs::read_to_string(path).context(format!("Failed to read config from {path:?}"))?;
+    let config =
+        toml::from_str(&contents).context(format!("Failed to parse TOML from {path:?}"))?;
     Ok(config)
 }
 
 fn main() -> eyre::Result<()> {
+    env_logger::builder().init();
     let config_dir = dirs::config_dir()
         .expect("System should have a config directory")
         .join(NAME);
@@ -89,12 +91,9 @@ fn main() -> eyre::Result<()> {
 
         let mut response = match (method, path) {
             (Method::Get, "/") => Response::empty(308)
-                .with_header(
-                    Header::from_bytes(b"Location", page::music::PATH.as_bytes())
-                        .unwrap(),
-                )
+                .with_header(Header::from_bytes(b"Location", page::music::PATH.as_bytes()).unwrap())
                 .boxed(),
-            (Method::Get, page::music::PATH) => {
+            (Method::Get, "/music") => {
                 let html = cache.get(&key).cloned().unwrap_or_else(|| {
                     let v = page::music::render(&music_releases, &query);
                     cache.insert(key, v.clone());
@@ -102,6 +101,7 @@ fn main() -> eyre::Result<()> {
                 });
                 Response::from_string(html).boxed()
             }
+            (Method::Get, "/words") => page::words::render(&query),
             _ => {
                 eprintln!("Couldn't find {path:?}");
                 Response::new_empty(tiny_http::StatusCode(404)).boxed()

@@ -2,6 +2,12 @@
   --bg: #EEE;
   --text: #121212;
   --accent: #007acc;
+
+  --font-family: "Noto Sans", noto-sans, sans-serif;
+  --title-font-family: 'Noto Serif', 'Merriweather', serif;
+  --code-font-family: 'Iosevka', 'Roboto Mono', monospace;
+
+  --md-content-size: 90ex;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -9,6 +15,7 @@
     --bg: #121212;
     --bg-alt: #181818;
     --text: #EEE;
+    --text-alt: #999;
     --accent: #5e3ae9;
   }
 }
@@ -16,7 +23,11 @@
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: noto-sans, sans-serif;
+  font-family: var(--font-family);
+}
+
+hr {
+  color: var(--text-alt);
 }
 
 a {
@@ -29,7 +40,7 @@ a {
   background: var(--accent);
   color: var(--text);
   text-decoration: none;
-  border-radius: 0.3em;
+  border-radius: 0.33em;
   font-weight: bold;
 }
 
@@ -53,9 +64,9 @@ a {
   align-items: flex-start;
   background-color: var(--bg-alt);
   padding: 1ex;
-  border-radius: 0.3ex;
+  border-radius: 0.33ex;
 }
-.album-grid-container .label {
+.label {
   user-select: none;
 }
 .album-grid-container > img {
@@ -69,8 +80,83 @@ a {
   flex: 1 1 200px;
   display: grid;
   grid-template-columns: max-content auto;
-  row-gap: 0.3ex;
+  row-gap: 0.33ex;
   column-gap: 1ex;
   padding: 0.2ex;
 }
 
+
+/* Words */
+
+.md-title {
+  font-family: var(--title-font-family);
+}
+
+.md-body {
+    max-width: 70ex;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+
+
+math {
+    display: block;
+    font-size: calc(1.25ex);
+
+}
+
+blockquote {
+  background: var(--bg);
+  border-left: 10px solid var(--accent);
+  margin: 1.5em 10px;
+  padding: 0.5ex 10px;
+}
+blockquote p {
+  display: inline;
+}
+
+.md-codeblock {
+  width: fit-content; 
+}
+.md-codeblock pre {
+  padding-left: 2ex;
+  padding-right: 2ex;
+}
+
+pre {
+    padding: 1ex;
+    overflow-x: scroll;
+    font-size: var(--code-font-size);
+}
+code {
+    padding: 0.33ex;
+}
+
+pre, code {
+    font-family: var(--code-font-family);
+    font-size: var(--code-font-size);
+    border-radius: 0.33ex;
+}
+
+/* CSS preprocessors are the devil. */
+
+/* Quill styling */
+
+.ql-picker-label {
+  color: var(--text) !important;
+}
+.ql-picker-options {
+  background-color: var(--bg-alt) !important;
+  color: var(--text) !important;
+}
+.ql-snow.ql-toolbar button:hover, .ql-snow .ql-toolbar button:hover, .ql-snow.ql-toolbar button:focus, .ql-snow .ql-toolbar button:focus, .ql-snow.ql-toolbar button.ql-active, .ql-snow .ql-toolbar button.ql-active, .ql-snow.ql-toolbar .ql-picker-label:hover, .ql-snow .ql-toolbar .ql-picker-label:hover, .ql-snow.ql-toolbar .ql-picker-label.ql-active, .ql-snow .ql-toolbar .ql-picker-label.ql-active, .ql-snow.ql-toolbar .ql-picker-item:hover, .ql-snow .ql-toolbar .ql-picker-item:hover, .ql-snow.ql-toolbar .ql-picker-item.ql-selected, .ql-snow .ql-toolbar .ql-picker-item.ql-selected {
+  color: var(--accent);
+}
+.ql-snow .ql-stroke {
+  stroke: var(--text) !important;
+}
+
+.ql-fill {
+  fill: var(--text) !important;
+}

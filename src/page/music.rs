@@ -1,4 +1,4 @@
-use crate::NAME;
+use crate::{CSS, NAME};
 use eyre::Context;
 use musicbrainz_rs::{
     MusicBrainzClient,
@@ -68,8 +68,8 @@ pub fn prepare() -> eyre::Result<Vec<Release>> {
 
 fn load_config(path: impl AsRef<Path>) -> eyre::Result<Config> {
     let path = path.as_ref();
-    let contents = std::fs::read_to_string(path)
-        .context(format!("Failed to read {path:?} to string"))?;
+    let contents =
+        std::fs::read_to_string(path).context(format!("Failed to read {path:?} to string"))?;
     let config = toml::from_str(&contents)?;
     Ok(config)
 }
@@ -81,8 +81,7 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
     let mut client = MusicBrainzClient::default();
 
     client.max_retries = 3;
-    client
-        .set_user_agent("Decator's Music Suggestions 0.1.0 (expo-plusplus@proton.me)")?;
+    client.set_user_agent("Decator's Music Suggestions 0.1.0 (expo-plusplus@proton.me)")?;
 
     if path.exists() {
         let contents = fs::read_to_string(path)?;
@@ -176,9 +175,11 @@ pub fn render(releases: &[Release], query: &QueryParameters) -> String {
                     b.release_date
                         .as_ref()
                         .map(|x| x.into_naive_date(1, 1, 1).unwrap_or(NaiveDate::MIN))
-                        .cmp(&a.release_date.as_ref().map(|x| {
-                            x.into_naive_date(1, 1, 1).unwrap_or(NaiveDate::MIN)
-                        }))
+                        .cmp(
+                            &a.release_date
+                                .as_ref()
+                                .map(|x| x.into_naive_date(1, 1, 1).unwrap_or(NaiveDate::MIN)),
+                        )
                 });
             }
             _ => {}
@@ -190,7 +191,6 @@ pub fn render(releases: &[Release], query: &QueryParameters) -> String {
 
 fn generate_html(releases: &[&Release]) -> String {
     const TITLE: &str = "Recommendations";
-    const CSS: &str = include_str!("../../styles.css");
     let mut buf = String::new();
     writeln!(buf, "<!DOCTYPE html>").unwrap();
     writeln!(buf, r#"<html lang="en-US">"#).unwrap();
@@ -300,7 +300,12 @@ fn generate_release_element(release: &Release) -> String {
         )
         .unwrap();
         if let Some(DateString(release_date)) = release.release_date.as_ref() {
-            writeln!(buf, r#"<div class="label"><strong>Release Date:</strong></div><div>{date}</div>"#, date = release_date).unwrap();
+            writeln!(
+                buf,
+                r#"<div class="label"><strong>Release Date:</strong></div><div>{date}</div>"#,
+                date = release_date
+            )
+            .unwrap();
         }
         writeln!(
             buf,
