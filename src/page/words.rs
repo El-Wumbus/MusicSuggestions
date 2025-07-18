@@ -1,11 +1,9 @@
 use std::{
-    any::Any,
     fs,
-    ops::Index,
     path::{Path, PathBuf},
 };
 
-use chrono::{DateTime, Local, NaiveDateTime};
+use chrono::NaiveDateTime;
 use eyre::Context;
 use log::error;
 use serde::Deserialize;
@@ -32,11 +30,11 @@ pub fn render(query: &QueryParameters) -> ResponseBox {
 
     if let Some(Some(title)) = query.get("title") {
         dbg!(&title);
-        render_document(&content_dir, &title)
+        render_document(&content_dir, title)
     } else {
         render_index(&content_dir).unwrap_or_else(|e| {
             error!("Failed to render index: {e}");
-            return Response::empty(500).boxed();
+            Response::empty(500).boxed()
         })
     }
 }
@@ -49,7 +47,7 @@ fn find_content(content_dir: &Path) -> eyre::Result<Vec<PathBuf>> {
             continue;
         }
         let path = entry.path();
-        if !path.extension().is_some_and(|ext| ext == "md") {
+        if path.extension().is_none_or(|ext| ext != "md") {
             continue;
         }
         content.push(path);
@@ -59,11 +57,9 @@ fn find_content(content_dir: &Path) -> eyre::Result<Vec<PathBuf>> {
 
 fn render_index(content_dir: &Path) -> eyre::Result<ResponseBox> {
     let mut index = vec![];
-    let content = find_content(content_dir)?.into_iter().flat_map(|path| {
+    let content = find_content(content_dir)?.into_iter().filter_map(|path| {
         let title = path.with_extension("");
-        let Some(title) = title.file_name() else {
-            return None;
-        };
+        let title = title.file_name()?;
 
         let mut meta = Meta::default();
         meta.title = title.to_string_lossy().into_owned();
@@ -91,7 +87,7 @@ fn render_index(content_dir: &Path) -> eyre::Result<ResponseBox> {
             r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#
         )
         .unwrap();
-        writeln!(out, r#"<title>{TITLE}</title>"#).unwrap();
+        writeln!(out, r"<title>{TITLE}</title>").unwrap();
         writeln!(out, r#"<meta property="og:title" content="{TITLE}" />"#).unwrap();
         writeln!(out, "<style>\n{CSS}\n</style>").unwrap();
     }
@@ -109,7 +105,7 @@ fn render_index(content_dir: &Path) -> eyre::Result<ResponseBox> {
         writeln!(out, "</ol>").unwrap();
     }
     writeln!(out, "</body>").unwrap();
-    writeln!(out, r#"</html>"#).unwrap();
+    writeln!(out, r"</html>").unwrap();
 
     let response = Response::from_string(out)
         .with_header(
@@ -122,8 +118,8 @@ fn render_index(content_dir: &Path) -> eyre::Result<ResponseBox> {
 }
 
 fn render_document(content_dir: &Path, title: &str) -> ResponseBox {
-    let mut meta = Meta::default();
-    let mut path = content_dir.join(format!("{title}.md"));
+    let meta = Meta::default();
+    let path = content_dir.join(format!("{title}.md"));
     if !path.exists() || title.contains('/') {
         return Response::empty(404).boxed();
     }
@@ -134,14 +130,14 @@ fn render_document(content_dir: &Path, title: &str) -> ResponseBox {
             return Response::empty(500).boxed();
         }
     };
-    let response = Response::from_string(document)
+
+    Response::from_string(document)
         .with_header(
             "Content-Type: text/html"
                 .parse::<Header>()
                 .expect("vaild header"),
         )
-        .boxed();
-    response
+        .boxed()
 }
 
 fn markdown_to_document(contents: &str, mut meta: Meta) -> (String, Meta) {
@@ -242,7 +238,7 @@ fn apply_document_template(html: &str, meta: &Meta) -> String {
             r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#
         )
         .unwrap();
-        writeln!(out, r#"<title>{title}</title>"#).unwrap();
+        writeln!(out, r"<title>{title}</title>").unwrap();
         writeln!(out, r#"<meta property="og:title" content="{title}" />"#).unwrap();
 
         if let Some(description) = meta.description.as_deref() {

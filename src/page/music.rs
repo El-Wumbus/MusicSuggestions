@@ -20,7 +20,7 @@ pub const PATH: &str = "/music";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Release {
-    /// MusicBrainz ReleaseGroupID
+    /// `MusicBrainz` `ReleaseGroupID`
     pub rgid:   String,
     /// Whether this is highly recomended
     pub highly: bool,
@@ -91,8 +91,8 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
 
     releases.retain(|cached| config.recs.iter().any(|rec| rec.release == cached.rgid));
     let mut last_fetch = Instant::now();
-    'outer: for rec in config.recs.iter() {
-        for release in releases.iter_mut() {
+    'outer: for rec in &config.recs {
+        for release in &mut releases {
             if release.rgid == rec.release {
                 release.highly = rec.highly;
                 continue 'outer;
@@ -145,11 +145,11 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
 
     let parent = path.parent().expect("this is a file");
     if !parent.is_dir() {
-        fs::create_dir_all(&parent).context(format!(
+        fs::create_dir_all(parent).context(format!(
             "Failed to create parent directory of cache file: {parent:?}"
         ))?;
     }
-    let mut f = fs::File::create(&path)?;
+    let mut f = fs::File::create(path)?;
     f.write_all(contents.as_bytes())?;
 
     if let Some(err) = err {
@@ -161,7 +161,7 @@ fn load_cache(path: impl AsRef<Path>, config: Config) -> eyre::Result<Vec<Releas
 
 pub fn render(releases: &[Release], query: &QueryParameters) -> String {
     let mut releases: Vec<_> = releases.iter().collect();
-    if let Some(Some(sort)) = query.get("sort").as_deref() {
+    if let Some(Some(sort)) = query.get("sort") {
         match sort.as_str() {
             "title" => {
                 releases.sort_by(|a, b| a.title.cmp(&b.title));
@@ -200,19 +200,18 @@ fn generate_html(releases: &[&Release]) -> String {
          <head>
          <meta charset="utf-8" />
          <meta name="viewport" content="width=device-width, initial-scale=1">
-         <title>{}</title>
-         <meta property="og:title" content="{}" />
+         <title>{TITLE}</title>
+         <meta property="og:title" content="{TITLE}" />
          <style>
-         {}
+         {CSS}
          </style>
          </head>
-    "#,
-        TITLE, TITLE, CSS
+    "#
     )
     .unwrap();
 
     writeln!(buf, "{}", generate_body(releases)).unwrap();
-    writeln!(buf, r#"</html>"#).unwrap();
+    writeln!(buf, r"</html>").unwrap();
 
     buf
 }
@@ -274,7 +273,7 @@ fn generate_release_element(release: &Release) -> String {
     writeln!(buf, "<li>").unwrap();
     writeln!(buf, r#"<div class="album-grid-container">"#).unwrap();
     if let Some(img) = release.artwork.as_deref() {
-        writeln!(buf, r#"<img src="{img}" />"#, img = img).unwrap();
+        writeln!(buf, r#"<img src="{img}" />"#).unwrap();
     }
 
     writeln!(buf, r#"<div class="album-grid-info">"#).unwrap();
@@ -288,8 +287,7 @@ fn generate_release_element(release: &Release) -> String {
         if let Some(artist) = release.artist_credit.as_deref() {
             writeln!(
                 buf,
-                r#"<div class="label"><strong>Artist:</strong></div><div>{artist}</div>"#,
-                artist = artist
+                r#"<div class="label"><strong>Artist:</strong></div><div>{artist}</div>"#
             )
             .unwrap();
         }
@@ -302,8 +300,7 @@ fn generate_release_element(release: &Release) -> String {
         if let Some(DateString(release_date)) = release.release_date.as_ref() {
             writeln!(
                 buf,
-                r#"<div class="label"><strong>Release Date:</strong></div><div>{date}</div>"#,
-                date = release_date
+                r#"<div class="label"><strong>Release Date:</strong></div><div>{release_date}</div>"#
             )
             .unwrap();
         }
@@ -328,7 +325,7 @@ fn get_releasegroup(
 ) -> Result<ReleaseGroup, musicbrainz_rs::Error> {
     let mut tries = 3i32;
     loop {
-        eprintln!("Getting info for: {:?}...", id);
+        eprintln!("Getting info for: {id:?}...");
         let attempt = ReleaseGroup::fetch()
             .id(id)
             .with_artists()
@@ -349,7 +346,6 @@ fn get_releasegroup(
                 }
                 tries -= 1;
                 std::thread::sleep(Duration::from_secs(4));
-                continue;
             }
             Err(e) => break Err(e),
         }
@@ -362,12 +358,12 @@ fn get_releasegroup_image(
 ) -> Result<Option<String>, musicbrainz_rs::Error> {
     let mut tries = 3i32;
     loop {
-        eprintln!("Getting image for: {:?}...", id);
+        eprintln!("Getting image for: {id:?}...");
         let attempt = ReleaseGroup::fetch_coverart()
             .id(id)
             .front()
             .res_250()
-            .execute_with_client(&client);
+            .execute_with_client(client);
         match attempt {
             Ok(img) => {
                 break Ok(match img {
@@ -390,7 +386,6 @@ fn get_releasegroup_image(
                 }
                 tries -= 1;
                 std::thread::sleep(Duration::from_secs(4));
-                continue;
             }
             Err(e) => break Err(e),
         }

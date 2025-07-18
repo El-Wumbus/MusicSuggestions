@@ -46,7 +46,7 @@ fn main() -> eyre::Result<()> {
         let mut request = match server.recv() {
             Ok(rq) => rq,
             Err(e) => {
-                eprintln!("error: {}", e);
+                eprintln!("error: {e}");
                 break;
             }
         };
@@ -107,9 +107,9 @@ fn main() -> eyre::Result<()> {
                 Response::new_empty(tiny_http::StatusCode(404)).boxed()
             }
         };
-        caching_headers
-            .iter()
-            .for_each(|header| response.add_header(header.clone()));
+        for header in caching_headers.iter() {
+            response.add_header(header.clone());
+        }
         respond_or_complain(request, response);
     }
 
