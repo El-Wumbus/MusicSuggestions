@@ -17,6 +17,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 dirs = "6.0.0"
 env_logger = "0.11.8"
 eyre = "0.6.12"
+lazy_static = "1.5.0"
 log = "0.4.27"
 musicbrainz_rs = { version = "0.12.0", default-features = false, features = ["rustls", "blocking"] }
 pulldown-cmark = { version = "0.13.0", features = ["simd"] }

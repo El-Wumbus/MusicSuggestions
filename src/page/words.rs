@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 use tiny_http::{Header, Response, ResponseBox};
 use uri_rs::QueryParameters;
 
-use crate::{CSS, NAME, group_nodes, node};
+use crate::{CSS, NAME, group_nodes, node, page::nav::NAVBAR};
 
 struct Config {}
 
@@ -85,6 +85,7 @@ fn render_index(content_dir: &Path) -> eyre::Result<ResponseBox> {
             node!{style => CSS}
         },
         node!{body =>
+            NAVBAR.as_str(),
             node!{ol =>
                 index.iter().fold(String::new(), |acc, (title, _datetime)| {
                     let x = node!{li => node!{a, href = format!("/words?title={title}") => title}};
@@ -231,6 +232,7 @@ fn apply_document_template(html: &str, meta: &Meta) -> String {
             node!{style => CSS},
         },
         node!{body, class ="md-body" =>
+            NAVBAR.as_str(),
             node!{article, class="md-content-container" =>
                 node!{div, style = "display: flex; justify-content: space-between; aligin-items: center; margin: 0" =>
                     node! {h1, class = "md-title", style = "margin: 0; margin-bottom: 0.17ex" =>

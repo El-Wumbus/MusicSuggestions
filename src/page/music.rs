@@ -1,4 +1,4 @@
-use crate::{CSS, NAME};
+use crate::{CSS, NAME, page::nav::NAVBAR};
 use eyre::Context;
 use musicbrainz_rs::{
     MusicBrainzClient,
@@ -8,7 +8,7 @@ use musicbrainz_rs::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt::Write as _,
+    fmt::Write,
     fs,
     io::Write as _,
     path::Path,
@@ -210,7 +210,13 @@ fn generate_html(releases: &[&Release]) -> String {
     )
     .unwrap();
 
-    writeln!(buf, "{}", generate_body(releases)).unwrap();
+    buf.write_str(NAVBAR.as_str()).unwrap();
+    writeln!(
+        buf,
+        r#"<div id="music-page-contents">{}</div>"#,
+        generate_body(releases)
+    )
+    .unwrap();
     writeln!(buf, r"</html>").unwrap();
 
     buf
@@ -221,7 +227,7 @@ fn generate_body(releases: &[&Release]) -> String {
     let n_recommended = releases.iter().filter(|r| !r.highly).collect::<Vec<_>>();
     let mut buf = String::new();
 
-    writeln!(buf, "<nav>").unwrap();
+    writeln!(buf, r#"<div class="music-nav">"#).unwrap();
     writeln!(
         buf,
         r#"<div class="label" style="display: inline-block">Sort by:</div>"#
@@ -242,7 +248,7 @@ fn generate_body(releases: &[&Release]) -> String {
         r#"<a class="button" href="{PATH}/?sort=release_date">Release Date (Decending)</a>"#
     )
     .unwrap();
-    writeln!(buf, "</nav>").unwrap();
+    writeln!(buf, "</div>").unwrap();
 
     writeln!(buf, "<h2>Highly Recommended</h2>").unwrap();
     writeln!(
